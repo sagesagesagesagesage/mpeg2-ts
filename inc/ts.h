@@ -47,5 +47,33 @@
 									}														\
 
 
+
+/*------------------------------------------------------------------------------
+ Enum
+------------------------------------------------------------------------------*/
+typedef enum {
+	TS_SCRAMBLE_NONE,
+	TS_SCRAMBLE_EVEN,
+	TS_SCRAMBLE_ODD,
+} TS_SCRAMBLE;
+
+typedef enum {
+	TS_ADAPTATION_FIELD_CONTROL_NONE,
+	TS_ADAPTATION_FIELD_CONTROL_ONLY,
+	TS_ADAPTATION_FIELD_CONTROL_WITH_PAYLOAD,
+} TS_ADAPTATION_FIELD_CONTROL;
+
+/*------------------------------------------------------------------------------
+ Struct
+------------------------------------------------------------------------------*/
+typedef struct {
+	uint8_t						SyncByte;
+	bool						TransportErrorIndicator;
+	bool						PayloadUnitStartIndicator;
+	uint16_t					Pid;
+	bool						TransportPriority;
+	TS_SCRAMBLE					TransportScramblingControl;
+	TS_ADAPTATION_FIELD_CONTROL	AdaptationFieldControl;
+} TS_HEADER;
 #endif
 
