@@ -52,15 +52,15 @@
  Enum
 ------------------------------------------------------------------------------*/
 typedef enum {
-	TS_SCRAMBLE_NONE,
-	TS_SCRAMBLE_EVEN,
-	TS_SCRAMBLE_ODD,
+	TS_SCRAMBLE_NONE = 0x00,
+	TS_SCRAMBLE_EVEN = 0x02,
+	TS_SCRAMBLE_ODD = 0x03,
 } TS_SCRAMBLE;
 
 typedef enum {
-	TS_ADAPTATION_FIELD_CONTROL_NONE,
-	TS_ADAPTATION_FIELD_CONTROL_ONLY,
-	TS_ADAPTATION_FIELD_CONTROL_WITH_PAYLOAD,
+	TS_ADAPTATION_FIELD_CONTROL_NONE = 0x01,
+	TS_ADAPTATION_FIELD_CONTROL_ONLY = 0x02,
+	TS_ADAPTATION_FIELD_CONTROL_WITH_PAYLOAD = 0x03,
 } TS_ADAPTATION_FIELD_CONTROL;
 
 /*------------------------------------------------------------------------------
@@ -70,10 +70,11 @@ typedef struct {
 	uint8_t						SyncByte;
 	bool						TransportErrorIndicator;
 	bool						PayloadUnitStartIndicator;
-	uint16_t					Pid;
 	bool						TransportPriority;
+	uint16_t					Pid;
 	TS_SCRAMBLE					TransportScramblingControl;
 	TS_ADAPTATION_FIELD_CONTROL	AdaptationFieldControl;
+	uint8_t						ContinuityCounter;
 } TS_HEADER;
 #endif
 

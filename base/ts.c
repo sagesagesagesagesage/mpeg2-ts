@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <math.h>
+#include <assert.h>
 
 #include "ts.h"
 
@@ -23,8 +24,13 @@
 #define DEBUG_PRINT(...)
 #endif
 
+struct {
+	bool	DumpTsHeader;			// Dump TS Header
+} Options;
+
 
 static	bool			ts_dump( const char* ts_file );
+static	void			ts_dump_header( const uint8_t* ts_packet, const uint8_t ts_packet_length );
 static	void			show_help( void );
 
 /**
@@ -49,6 +55,10 @@ static	bool			ts_dump( const char* ts_file )
 				continue;
 			}
 			
+			if( Options.DumpTsHeader ){
+				ts_dump_header( ts_buffer, TS_PACKET_SIZE );
+			}
+			
 			for( i = 0 ; i < TS_PACKET_SIZE ; i++ ){
 				printf( "%02X,", ts_buffer[ i ] );
 			}
@@ -65,11 +75,92 @@ static	bool			ts_dump( const char* ts_file )
 }
 
 /**
+* @brief		Dump TS Packet header
+* @param[in]	ts_packet			TS packet
+* @param[in]	ts_packet_length	length of ts_packet
+* @return		void
+* @details		Display data of TS packet header.
+*/
+static	void			ts_dump_header( const uint8_t* ts_packet, const uint8_t ts_packet_length )
+{
+	TS_HEADER		header;
+
+	static	bool	show_header = true;
+	
+	assert( TS_PACKET_SIZE == ts_packet_length );
+	
+	header.SyncByte						 = ts_packet[ 0 ];
+	header.TransportErrorIndicator		 = ( 0x80 & ts_packet[ 1 ] ) >> 7;
+	header.PayloadUnitStartIndicator	 = ( 0x40 & ts_packet[ 1 ] ) >> 6;
+	header.TransportPriority			 = ( 0x20 & ts_packet[ 1 ] ) >> 6;
+	header.Pid							 = GET_PID( ts_packet[ 1 ], ts_packet[ 2 ]  );
+	header.TransportScramblingControl	 = ( ts_packet[ 3 ] & 0xC0 ) >> 6;
+	header.AdaptationFieldControl		 = ( ts_packet[ 3 ] & 0x30 ) >> 4;
+	header.ContinuityCounter			 = ts_packet[ 3 ] & 0x0F;
+	
+	if( show_header ){
+		printf("Sync byte,Transport Error Indicator,Payload Unit Start Indicator,Transport Priority,PID,Transport Scrambling Control,Adaptation field control,Continuity counter,Adaptation field,TS Packet raw data\n");
+		show_header = false;
+	}
+	
+	printf( "0x%02X,%s,%s,%s,0x%X,%s,%s,%d,", 
+			header.SyncByte, 
+			( header.TransportErrorIndicator ) ? "NG" : "OK",
+			( header.PayloadUnitStartIndicator ) ? "ON" : "OFF",
+			( header.TransportPriority ) ? "Higher" : "Normal",
+			header.Pid,
+			( ( TS_SCRAMBLE_NONE == header.TransportScramblingControl ) 
+					? 
+						"Not scrambled"
+					:
+						( ( TS_SCRAMBLE_EVEN == header.TransportScramblingControl ) 
+							?
+								"Scrambled with even key"
+							:
+								( ( TS_SCRAMBLE_EVEN == header.TransportScramblingControl ) 
+									?
+										"Scrambled with even key"
+									:
+										"Reserved for future use" )
+						)
+			),
+			( ( TS_ADAPTATION_FIELD_CONTROL_NONE == header.AdaptationFieldControl ) 
+					? 
+						"Payload only"
+					:
+						( ( TS_ADAPTATION_FIELD_CONTROL_ONLY == header.AdaptationFieldControl ) 
+							?
+								"Adaptation field only"
+							:
+								( ( TS_ADAPTATION_FIELD_CONTROL_WITH_PAYLOAD == header.AdaptationFieldControl ) 
+									?
+										"Adaptation field followed by payload"
+									:
+										"Reserved for future use" )
+						)
+			),
+			header.ContinuityCounter
+	);
+	
+	if(    ( PID_NULL == header.Pid )
+		|| ( TS_ADAPTATION_FIELD_CONTROL_NONE == header.AdaptationFieldControl ) ){
+		printf( "-," );
+	}else{
+		int i;
+		for( i = 0 ; i < ts_packet[ 4 ] ; i++ ){
+			printf( "%02X ", ts_packet[ 4 + i ] );
+		}
+		printf( "," );
+	}
+}
+
+/**
 * @brief		Show help
 */
 static	void			show_help( void )
 {
 	printf( " -i\tInput TS file path.\n" );
+	printf( " -H\tDump TS Header\n" );
 	printf( " -h\tShow Help.\n" );
 }
 
@@ -81,13 +172,18 @@ int						main( int args, char* argc[] )
 	char*				in_filename = NULL;
 	char				ch;
 	
-	while( (ch = getopt( args, argc, "i:h") ) != -1 ){
+	memset( &Options, 0, sizeof( Options ) );
+	
+	while( (ch = getopt( args, argc, "i:Hh") ) != -1 ){
 		if( ch == 255 ){
 			break;
 		}
 		switch( ch ){
 			case 'i':
 				in_filename = optarg;
+				break;
+			case 'H':
+				Options.DumpTsHeader = true;
 				break;
 			case 'h':
 			default:
@@ -102,7 +198,6 @@ int						main( int args, char* argc[] )
 		return -1;
 	}
 	
-	printf( "IN File	 = %s\n", in_filename );
 	ts_dump( in_filename );
 	
 	return 0;
