@@ -17,6 +17,8 @@
 #define ADAPTATION_FIELD_PCR	( 0x10 )
 #define GET_PID(x1,x2)			((((uint16_t)x1&0x1F)<<8)|x2)
 
+#define PCR_NONE				( UINT32_MAX )
+
 #define TS_SYNC_BYTE			( 0x47 )
 
 #define PID_NULL				( 0x1FFF )
@@ -32,7 +34,7 @@
 										pcr |= ( pcr_bin[ 3 ] << ( 0 * 8 ) ) & 0x000000FF;	\
 										pcr <<= 1;											\
 										pcr |= ( pcr_bin[ 4 ] >> ( 7 ) ) & 0x01;			\
-									}														\
+									}	
 
 #define SET_PCR( pcr_bin, pcr )		{														\
 										pcr_bin[ 0 ] = ( pcr >> 25 ) & 0xFF;				\
@@ -45,6 +47,19 @@
 											pcr_bin[ 4 ] &= 0x7F;							\
 										}													\
 									}														\
+
+#define GET_PCR_EXT( pcr_bin, pcr )		{																			\
+										uint64_t	b, e;															\
+										b  = ( ( ( uint8_t* )pcr_bin )[ 0 ] << ( 3 * 8 ) ) & 0x00000000FF000000;	\
+										b |= ( ( ( uint8_t* )pcr_bin )[ 1 ] << ( 2 * 8 ) ) & 0x0000000000FF0000;	\
+										b |= ( ( ( uint8_t* )pcr_bin )[ 2 ] << ( 1 * 8 ) ) & 0x000000000000FF00;	\
+										b |= ( ( ( uint8_t* )pcr_bin )[ 3 ] << ( 0 * 8 ) ) & 0x00000000000000FF;	\
+										b <<= 1;																	\
+										b |= ( ( ( uint8_t* )pcr_bin )[ 4 ] >> ( 7 ) ) & 0x0000000000000001;		\
+										e  = ( ( ( uint8_t* )pcr_bin )[ 4 ] << ( 8 ) ) & 0x0000000000000100;		\
+										e |= ( ( ( uint8_t* )pcr_bin )[ 5 ] << ( 0 ) ) & 0x00000000000000FF;		\
+										pcr = b * 300 + e;															\
+									}																				\
 
 
 
@@ -75,6 +90,7 @@ typedef struct {
 	TS_SCRAMBLE					TransportScramblingControl;
 	TS_ADAPTATION_FIELD_CONTROL	AdaptationFieldControl;
 	uint8_t						ContinuityCounter;
+	uint64_t					Pcr;
 } TS_HEADER;
 #endif
 

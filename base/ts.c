@@ -98,8 +98,20 @@ static	void			ts_dump_header( const uint8_t* ts_packet, const uint8_t ts_packet_
 	header.AdaptationFieldControl		 = ( ts_packet[ 3 ] & 0x30 ) >> 4;
 	header.ContinuityCounter			 = ts_packet[ 3 ] & 0x0F;
 	
+	if(    (    ( TS_ADAPTATION_FIELD_CONTROL_ONLY == header.AdaptationFieldControl )
+			 || ( TS_ADAPTATION_FIELD_CONTROL_WITH_PAYLOAD == header.AdaptationFieldControl ) )
+		&& ( 0x10 & ts_packet[ 5 ] ) ){
+		GET_PCR_EXT( &ts_packet[ 6 ], header.Pcr );
+		
+	}else{
+		header.Pcr = PCR_NONE;
+	}
+	
 	if( show_header ){
-		printf("Sync byte,Transport Error Indicator,Payload Unit Start Indicator,Transport Priority,PID,Transport Scrambling Control,Adaptation field control,Continuity counter,Adaptation field,TS Packet raw data\n");
+		printf( "Sync byte,Transport Error Indicator,Payload Unit Start Indicator,"\
+				"Transport Priority,PID,Transport Scrambling Control,"\
+				"Adaptation field control,Continuity counter,PCR,Adaptation field,"\
+				"TS Packet raw data\n");
 		show_header = false;
 	}
 	
@@ -141,6 +153,11 @@ static	void			ts_dump_header( const uint8_t* ts_packet, const uint8_t ts_packet_
 			),
 			header.ContinuityCounter
 	);
+	if( PCR_NONE == header.Pcr ){
+		printf( "-," );
+	}else{
+		printf( "%ld,", header.Pcr );
+	}
 	
 	if(    ( PID_NULL == header.Pid )
 		|| ( TS_ADAPTATION_FIELD_CONTROL_NONE == header.AdaptationFieldControl ) ){
