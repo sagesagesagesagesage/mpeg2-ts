@@ -17,20 +17,29 @@
 
 #include "ts.h"
 
-#define	DEBUG	0
-#if _DEBUG
+#define	DEBUG	1
+#if DEBUG
 #define DEBUG_PRINT(...)	printf( "DEBUG >" __VA_ARGS__ )
 #else
 #define DEBUG_PRINT(...)
 #endif
 
+/**
+* @def		BIT_RATE_COUNT_PCR
+* @brief	Define the number of PCRs used for calculating the bit rate
+*/
+#define BIT_RATE_COUNT_PCR		( 1000 )
+
 struct {
-	bool	DumpTsHeader;			// Dump TS Header
+	bool		DumpTsHeader;			// Dump TS Header
+	bool		CalcTsBitrate;			// Calculate bitrate 
+	uint32_t	BitrateCountPcr;
 } Options;
 
 
 static	bool			ts_dump( const char* ts_file );
 static	void			ts_dump_header( const uint8_t* ts_packet, const uint8_t ts_packet_length );
+static	double			ts_calc_bitrate( const char* ts_file, const uint32_t use_pcr_count );
 static	void			show_help( void );
 
 /**
@@ -172,12 +181,95 @@ static	void			ts_dump_header( const uint8_t* ts_packet, const uint8_t ts_packet_
 }
 
 /**
+* @brief		Calculate bit rate of TS file
+* @param[in]	ts_file			TS file path
+* @param[in]	use_pcr_count	Sampling PCR count
+* @return		double			bitrate. if error return 0.0
+*/
+static	double		ts_calc_bitrate( const char* ts_file, const uint32_t use_pcr_count )
+{
+	FILE*		ifp = NULL;
+	
+	uint8_t		ts_packet[ TS_PACKET_SIZE ];
+	
+	uint64_t	total_packet = 0;
+	
+	uint64_t	start_pcr = PCR_NONE;
+	uint64_t	end_pcr = PCR_NONE;
+	int			pcr_count = 0;
+	double		bitrate = 0.0;
+	uint16_t	pcr_pid = PID_NULL;
+	
+	ifp = fopen( ts_file, "rb" );
+	total_packet = 0;
+	if( ifp ){
+		while( TS_PACKET_SIZE == fread( ts_packet, 1, sizeof( ts_packet ), ifp ) ){
+			if( TS_SYNC_BYTE != ts_packet[ 0 ] ){
+				break;
+			}
+			
+			if( 0 < pcr_count ){
+				total_packet++;
+			}else{
+				total_packet = 0;
+			}
+			
+			if( ts_packet[ 3 ] & TS_ADAPTATION_FIELD ){			// Is adaptaion_file ON ?
+				if( ts_packet[ 5 ] & ADAPTATION_FIELD_PCR ){	// PCR Flag ?
+					if( PID_NULL == pcr_pid ){
+						pcr_pid = GET_PID( ts_packet[ 1 ], ts_packet[ 2 ] );
+					}
+					
+					if( pcr_pid != GET_PID( ts_packet[ 1 ], ts_packet[ 2 ] ) ){
+						continue;
+					}
+					
+					if( 0 == pcr_count ){
+						GET_PCR_EXT( &ts_packet[ 6 ], start_pcr );
+						DEBUG_PRINT( "Start PCR = %lu\n", start_pcr );
+						pcr_count++;
+					}else if( 0 < pcr_count ){
+						GET_PCR_EXT( &ts_packet[ 6 ], end_pcr );
+						
+						if( start_pcr > end_pcr ){
+							DEBUG_PRINT( "PCR RESET %lu => %lu\n", start_pcr, end_pcr );
+							pcr_count = 0;
+							total_packet = 0;
+							continue;
+						}
+						
+						pcr_count++;
+						
+						if( use_pcr_count < pcr_count ){
+							break;
+						}
+					}
+				}
+			}
+		}
+		fclose( ifp );
+		
+		if(    ( PCR_NONE != start_pcr )
+			&& ( PCR_NONE != end_pcr ) ){
+			DEBUG_PRINT("End   PCR = %lu / Total = %lu\n", end_pcr, total_packet );
+			bitrate = ( total_packet * TS_PACKET_SIZE * 8 ) / ( ( end_pcr - start_pcr ) / ( double )PCR_CLOCK_EXT );
+			DEBUG_PRINT( "TS Bitrate = %lf\n", bitrate );
+		}
+	}
+	
+	return bitrate;
+}
+
+
+/**
 * @brief		Show help
 */
 static	void			show_help( void )
 {
 	printf( " -i\tInput TS file path.\n" );
 	printf( " -H\tDump TS Header\n" );
+	printf( " -b\tCalculate bit rate of TS file\n" );
+	printf( " -c\tCalculate bit rate of TS file. Use packet number(32bit, default = %d).\n", BIT_RATE_COUNT_PCR );
 	printf( " -h\tShow Help.\n" );
 }
 
@@ -190,8 +282,9 @@ int						main( int args, char* argc[] )
 	char				ch;
 	
 	memset( &Options, 0, sizeof( Options ) );
+	Options.BitrateCountPcr = BIT_RATE_COUNT_PCR;
 	
-	while( (ch = getopt( args, argc, "i:Hh") ) != -1 ){
+	while( (ch = getopt( args, argc, "i:Hbc:h") ) != -1 ){
 		if( ch == 255 ){
 			break;
 		}
@@ -201,6 +294,12 @@ int						main( int args, char* argc[] )
 				break;
 			case 'H':
 				Options.DumpTsHeader = true;
+				break;
+			case 'b':
+				Options.CalcTsBitrate = true;
+				break;
+			case 'c':
+				Options.BitrateCountPcr = atol( optarg );
 				break;
 			case 'h':
 			default:
@@ -215,7 +314,11 @@ int						main( int args, char* argc[] )
 		return -1;
 	}
 	
-	ts_dump( in_filename );
+	if( Options.CalcTsBitrate ){
+		printf( "%s Bitrate = %f bps.\n", in_filename, ts_calc_bitrate( in_filename, Options.BitrateCountPcr ) );
+	}else{
+		ts_dump( in_filename );
+	}
 	
 	return 0;
 }

@@ -38,7 +38,7 @@ typedef struct{
 } ST_DATETIME;
 
 inline	uint8_t			bcd_to_dec( uint8_t bcd );
-static	bool			ts_calc_bitrate( const char* ts_file );
+static	double			ts_calc_bitrate( const char* ts_file );
 static	bool			ts_split( const char* in_filename, const char* out_filename, ST_DATETIME* start, ST_DATETIME* end );
 static	bool			get_datetime( char* str_datetime, ST_DATETIME* st_datetime );
 static	void			show_help( void );
@@ -65,7 +65,7 @@ inline	uint8_t		bcd_to_dec( uint8_t bcd )
 * @param[in]	out_filename	Output TS file path
 * @return		double			bitrate. if error return 0.0
 */
-static	bool		ts_calc_bitrate( const char* ts_file )
+static	double		ts_calc_bitrate( const char* ts_file )
 {
 	FILE*		ifp = NULL;
 	

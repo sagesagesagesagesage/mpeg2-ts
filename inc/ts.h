@@ -18,6 +18,7 @@
 #define GET_PID(x1,x2)			((((uint16_t)x1&0x1F)<<8)|x2)
 
 #define PCR_NONE				( UINT32_MAX )
+#define PCR_CLOCK_EXT			( 27000000 )
 
 #define TS_SYNC_BYTE			( 0x47 )
 
